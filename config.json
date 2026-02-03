@@ -1,0 +1,46 @@
+{
+  "server": {
+    "grpc_addr": ":50051",
+    "http_addr": ":8080",
+    "websocket_addr": ":8081"
+  },
+  "engine": {
+    "event_buffer_size": 100000,
+    "command_buffer_size": 100000,
+    "worker_count": 1,
+    "snapshot_interval": 1000000000
+  },
+  "nats": {
+    "url": "nats://localhost:4222",
+    "subject_prefix": "matchengine",
+    "enabled": false
+  },
+  "metrics": {
+    "enabled": true,
+    "addr": ":9090",
+    "namespace": "matchengine"
+  },
+  "audit": {
+    "enabled": true,
+    "file_path": "audit.log",
+    "buffer_size": 10000,
+    "flush_size": 100,
+    "flush_interval": 1000000000
+  },
+  "snapshot": {
+    "enabled": true,
+    "snapshot_dir": "./snapshots",
+    "interval": 1000000000,
+    "depth": 100
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "output": "stdout"
+  },
+  "symbols": [
+    "BTC-USDT",
+    "ETH-USDT",
+    "BNB-USDT"
+  ]
+}
