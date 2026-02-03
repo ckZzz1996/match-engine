@@ -102,7 +102,9 @@ mod:
 proto:
 	@echo "Generating protobuf code..."
 	@if command -v protoc >/dev/null 2>&1; then \
-		protoc --go_out=. --go-grpc_out=. api/proto/*.proto; \
+		protoc --go_out=./api/proto --go_opt=paths=source_relative \
+			--go-grpc_out=./api/proto --go-grpc_opt=paths=source_relative \
+			-I./api/proto api/proto/*.proto; \
 		echo "Protobuf code generated."; \
 	else \
 		echo "protoc not installed. Please install protobuf compiler."; \
@@ -147,54 +149,7 @@ clean:
 ## init-config: 生成默认配置文件
 init-config:
 	@echo "Generating default config..."
-	@cat > config.json << 'EOF'
-{
-  "server": {
-    "grpc_addr": ":50051",
-    "http_addr": ":8080",
-    "websocket_addr": ":8081"
-  },
-  "engine": {
-    "event_buffer_size": 100000,
-    "command_buffer_size": 100000,
-    "worker_count": 1,
-    "snapshot_interval": 1000000000
-  },
-  "nats": {
-    "url": "nats://localhost:4222",
-    "subject_prefix": "matchengine",
-    "enabled": false
-  },
-  "metrics": {
-    "enabled": true,
-    "addr": ":9090",
-    "namespace": "matchengine"
-  },
-  "audit": {
-    "enabled": true,
-    "file_path": "audit.log",
-    "buffer_size": 10000,
-    "flush_size": 100,
-    "flush_interval": 1000000000
-  },
-  "snapshot": {
-    "enabled": true,
-    "snapshot_dir": "./snapshots",
-    "interval": 1000000000,
-    "depth": 100
-  },
-  "logging": {
-    "level": "info",
-    "format": "json",
-    "output": "stdout"
-  },
-  "symbols": [
-    "BTC-USDT",
-    "ETH-USDT",
-    "BNB-USDT"
-  ]
-}
-EOF
+	@echo '{"server":{"grpc_addr":":50051","http_addr":":8080","websocket_addr":":8081"},"engine":{"event_buffer_size":100000,"command_buffer_size":100000,"worker_count":1,"snapshot_interval":1000000000},"nats":{"url":"nats://localhost:4222","subject_prefix":"matchengine","enabled":false},"metrics":{"enabled":true,"addr":":9090","namespace":"matchengine"},"audit":{"enabled":true,"file_path":"audit.log","buffer_size":10000,"flush_size":100,"flush_interval":1000000000},"snapshot":{"enabled":true,"snapshot_dir":"./snapshots","interval":1000000000,"depth":100},"logging":{"level":"info","format":"json","output":"stdout"},"symbols":["BTC-USDT","ETH-USDT","BNB-USDT"]}' > config.json
 	@echo "Config file created: config.json"
 
 ## help: 显示帮助信息

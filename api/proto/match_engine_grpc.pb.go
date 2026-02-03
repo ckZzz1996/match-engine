@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v5.29.3
-// source: api/proto/match_engine.proto
+// source: match_engine.proto
 
 package proto
 
@@ -293,7 +293,7 @@ var OrderService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/match_engine.proto",
+	Metadata: "match_engine.proto",
 }
 
 // MarketDataServiceClient is the client API for MarketDataService service.
@@ -588,7 +588,7 @@ var MarketDataService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "api/proto/match_engine.proto",
+	Metadata: "match_engine.proto",
 }
 
 // AdminServiceClient is the client API for AdminService service.
@@ -904,5 +904,5 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/match_engine.proto",
+	Metadata: "match_engine.proto",
 }
