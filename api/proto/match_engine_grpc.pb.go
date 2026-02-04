@@ -906,3 +906,450 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "match_engine.proto",
 }
+
+// ContractServiceClient is the client API for ContractService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ContractServiceClient interface {
+	// 创建合约订单
+	CreateContractOrder(ctx context.Context, in *CreateContractOrderRequest, opts ...grpc.CallOption) (*CreateContractOrderResponse, error)
+	// 平仓
+	ClosePosition(ctx context.Context, in *ClosePositionRequest, opts ...grpc.CallOption) (*ClosePositionResponse, error)
+	// 获取仓位
+	GetPosition(ctx context.Context, in *GetPositionRequest, opts ...grpc.CallOption) (*GetPositionResponse, error)
+	// 获取用户所有仓位
+	GetUserPositions(ctx context.Context, in *GetUserPositionsRequest, opts ...grpc.CallOption) (*GetUserPositionsResponse, error)
+	// 修改杠杆
+	ChangeLeverage(ctx context.Context, in *ChangeLeverageRequest, opts ...grpc.CallOption) (*ChangeLeverageResponse, error)
+	// 修改保证金模式
+	ChangeMarginType(ctx context.Context, in *ChangeMarginTypeRequest, opts ...grpc.CallOption) (*ChangeMarginTypeResponse, error)
+	// 获取资金费率
+	GetFundingRate(ctx context.Context, in *GetFundingRateRequest, opts ...grpc.CallOption) (*GetFundingRateResponse, error)
+	// 订阅仓位更新
+	SubscribePositions(ctx context.Context, in *SubscribePositionsRequest, opts ...grpc.CallOption) (ContractService_SubscribePositionsClient, error)
+	// 订阅强平事件
+	SubscribeLiquidations(ctx context.Context, in *SubscribeLiquidationsRequest, opts ...grpc.CallOption) (ContractService_SubscribeLiquidationsClient, error)
+}
+
+type contractServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewContractServiceClient(cc grpc.ClientConnInterface) ContractServiceClient {
+	return &contractServiceClient{cc}
+}
+
+func (c *contractServiceClient) CreateContractOrder(ctx context.Context, in *CreateContractOrderRequest, opts ...grpc.CallOption) (*CreateContractOrderResponse, error) {
+	out := new(CreateContractOrderResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/CreateContractOrder", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) ClosePosition(ctx context.Context, in *ClosePositionRequest, opts ...grpc.CallOption) (*ClosePositionResponse, error) {
+	out := new(ClosePositionResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/ClosePosition", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) GetPosition(ctx context.Context, in *GetPositionRequest, opts ...grpc.CallOption) (*GetPositionResponse, error) {
+	out := new(GetPositionResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/GetPosition", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) GetUserPositions(ctx context.Context, in *GetUserPositionsRequest, opts ...grpc.CallOption) (*GetUserPositionsResponse, error) {
+	out := new(GetUserPositionsResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/GetUserPositions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) ChangeLeverage(ctx context.Context, in *ChangeLeverageRequest, opts ...grpc.CallOption) (*ChangeLeverageResponse, error) {
+	out := new(ChangeLeverageResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/ChangeLeverage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) ChangeMarginType(ctx context.Context, in *ChangeMarginTypeRequest, opts ...grpc.CallOption) (*ChangeMarginTypeResponse, error) {
+	out := new(ChangeMarginTypeResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/ChangeMarginType", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) GetFundingRate(ctx context.Context, in *GetFundingRateRequest, opts ...grpc.CallOption) (*GetFundingRateResponse, error) {
+	out := new(GetFundingRateResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/GetFundingRate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) SubscribePositions(ctx context.Context, in *SubscribePositionsRequest, opts ...grpc.CallOption) (ContractService_SubscribePositionsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &ContractService_ServiceDesc.Streams[0], "/matchengine.ContractService/SubscribePositions", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &contractServiceSubscribePositionsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type ContractService_SubscribePositionsClient interface {
+	Recv() (*PositionUpdate, error)
+	grpc.ClientStream
+}
+
+type contractServiceSubscribePositionsClient struct {
+	grpc.ClientStream
+}
+
+func (x *contractServiceSubscribePositionsClient) Recv() (*PositionUpdate, error) {
+	m := new(PositionUpdate)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *contractServiceClient) SubscribeLiquidations(ctx context.Context, in *SubscribeLiquidationsRequest, opts ...grpc.CallOption) (ContractService_SubscribeLiquidationsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &ContractService_ServiceDesc.Streams[1], "/matchengine.ContractService/SubscribeLiquidations", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &contractServiceSubscribeLiquidationsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type ContractService_SubscribeLiquidationsClient interface {
+	Recv() (*LiquidationEvent, error)
+	grpc.ClientStream
+}
+
+type contractServiceSubscribeLiquidationsClient struct {
+	grpc.ClientStream
+}
+
+func (x *contractServiceSubscribeLiquidationsClient) Recv() (*LiquidationEvent, error) {
+	m := new(LiquidationEvent)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// ContractServiceServer is the server API for ContractService service.
+// All implementations must embed UnimplementedContractServiceServer
+// for forward compatibility
+type ContractServiceServer interface {
+	// 创建合约订单
+	CreateContractOrder(context.Context, *CreateContractOrderRequest) (*CreateContractOrderResponse, error)
+	// 平仓
+	ClosePosition(context.Context, *ClosePositionRequest) (*ClosePositionResponse, error)
+	// 获取仓位
+	GetPosition(context.Context, *GetPositionRequest) (*GetPositionResponse, error)
+	// 获取用户所有仓位
+	GetUserPositions(context.Context, *GetUserPositionsRequest) (*GetUserPositionsResponse, error)
+	// 修改杠杆
+	ChangeLeverage(context.Context, *ChangeLeverageRequest) (*ChangeLeverageResponse, error)
+	// 修改保证金模式
+	ChangeMarginType(context.Context, *ChangeMarginTypeRequest) (*ChangeMarginTypeResponse, error)
+	// 获取资金费率
+	GetFundingRate(context.Context, *GetFundingRateRequest) (*GetFundingRateResponse, error)
+	// 订阅仓位更新
+	SubscribePositions(*SubscribePositionsRequest, ContractService_SubscribePositionsServer) error
+	// 订阅强平事件
+	SubscribeLiquidations(*SubscribeLiquidationsRequest, ContractService_SubscribeLiquidationsServer) error
+	mustEmbedUnimplementedContractServiceServer()
+}
+
+// UnimplementedContractServiceServer must be embedded to have forward compatible implementations.
+type UnimplementedContractServiceServer struct {
+}
+
+func (UnimplementedContractServiceServer) CreateContractOrder(context.Context, *CreateContractOrderRequest) (*CreateContractOrderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateContractOrder not implemented")
+}
+func (UnimplementedContractServiceServer) ClosePosition(context.Context, *ClosePositionRequest) (*ClosePositionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClosePosition not implemented")
+}
+func (UnimplementedContractServiceServer) GetPosition(context.Context, *GetPositionRequest) (*GetPositionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPosition not implemented")
+}
+func (UnimplementedContractServiceServer) GetUserPositions(context.Context, *GetUserPositionsRequest) (*GetUserPositionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserPositions not implemented")
+}
+func (UnimplementedContractServiceServer) ChangeLeverage(context.Context, *ChangeLeverageRequest) (*ChangeLeverageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ChangeLeverage not implemented")
+}
+func (UnimplementedContractServiceServer) ChangeMarginType(context.Context, *ChangeMarginTypeRequest) (*ChangeMarginTypeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ChangeMarginType not implemented")
+}
+func (UnimplementedContractServiceServer) GetFundingRate(context.Context, *GetFundingRateRequest) (*GetFundingRateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFundingRate not implemented")
+}
+func (UnimplementedContractServiceServer) SubscribePositions(*SubscribePositionsRequest, ContractService_SubscribePositionsServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribePositions not implemented")
+}
+func (UnimplementedContractServiceServer) SubscribeLiquidations(*SubscribeLiquidationsRequest, ContractService_SubscribeLiquidationsServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeLiquidations not implemented")
+}
+func (UnimplementedContractServiceServer) mustEmbedUnimplementedContractServiceServer() {}
+
+// UnsafeContractServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ContractServiceServer will
+// result in compilation errors.
+type UnsafeContractServiceServer interface {
+	mustEmbedUnimplementedContractServiceServer()
+}
+
+func RegisterContractServiceServer(s grpc.ServiceRegistrar, srv ContractServiceServer) {
+	s.RegisterService(&ContractService_ServiceDesc, srv)
+}
+
+func _ContractService_CreateContractOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateContractOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).CreateContractOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/CreateContractOrder",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).CreateContractOrder(ctx, req.(*CreateContractOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_ClosePosition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClosePositionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).ClosePosition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/ClosePosition",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).ClosePosition(ctx, req.(*ClosePositionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_GetPosition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPositionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).GetPosition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/GetPosition",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).GetPosition(ctx, req.(*GetPositionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_GetUserPositions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserPositionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).GetUserPositions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/GetUserPositions",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).GetUserPositions(ctx, req.(*GetUserPositionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_ChangeLeverage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeLeverageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).ChangeLeverage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/ChangeLeverage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).ChangeLeverage(ctx, req.(*ChangeLeverageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_ChangeMarginType_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeMarginTypeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).ChangeMarginType(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/ChangeMarginType",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).ChangeMarginType(ctx, req.(*ChangeMarginTypeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_GetFundingRate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFundingRateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).GetFundingRate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/GetFundingRate",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).GetFundingRate(ctx, req.(*GetFundingRateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_SubscribePositions_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribePositionsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ContractServiceServer).SubscribePositions(m, &contractServiceSubscribePositionsServer{stream})
+}
+
+type ContractService_SubscribePositionsServer interface {
+	Send(*PositionUpdate) error
+	grpc.ServerStream
+}
+
+type contractServiceSubscribePositionsServer struct {
+	grpc.ServerStream
+}
+
+func (x *contractServiceSubscribePositionsServer) Send(m *PositionUpdate) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _ContractService_SubscribeLiquidations_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeLiquidationsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ContractServiceServer).SubscribeLiquidations(m, &contractServiceSubscribeLiquidationsServer{stream})
+}
+
+type ContractService_SubscribeLiquidationsServer interface {
+	Send(*LiquidationEvent) error
+	grpc.ServerStream
+}
+
+type contractServiceSubscribeLiquidationsServer struct {
+	grpc.ServerStream
+}
+
+func (x *contractServiceSubscribeLiquidationsServer) Send(m *LiquidationEvent) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+// ContractService_ServiceDesc is the grpc.ServiceDesc for ContractService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ContractService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "matchengine.ContractService",
+	HandlerType: (*ContractServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateContractOrder",
+			Handler:    _ContractService_CreateContractOrder_Handler,
+		},
+		{
+			MethodName: "ClosePosition",
+			Handler:    _ContractService_ClosePosition_Handler,
+		},
+		{
+			MethodName: "GetPosition",
+			Handler:    _ContractService_GetPosition_Handler,
+		},
+		{
+			MethodName: "GetUserPositions",
+			Handler:    _ContractService_GetUserPositions_Handler,
+		},
+		{
+			MethodName: "ChangeLeverage",
+			Handler:    _ContractService_ChangeLeverage_Handler,
+		},
+		{
+			MethodName: "ChangeMarginType",
+			Handler:    _ContractService_ChangeMarginType_Handler,
+		},
+		{
+			MethodName: "GetFundingRate",
+			Handler:    _ContractService_GetFundingRate_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SubscribePositions",
+			Handler:       _ContractService_SubscribePositions_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "SubscribeLiquidations",
+			Handler:       _ContractService_SubscribeLiquidations_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "match_engine.proto",
+}

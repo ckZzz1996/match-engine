@@ -1,5 +1,7 @@
 package types
 
+import "github.com/shopspring/decimal"
+
 // EventType 事件类型
 type EventType int8
 
@@ -15,6 +17,13 @@ const (
 	EventTypeSystemStatus EventType = 9  // 系统状态
 	EventTypeAuctionStart EventType = 10 // 集合竞价开始
 	EventTypeAuctionEnd   EventType = 11 // 集合竞价结束
+
+	// 合约相关事件
+	EventTypePosition    EventType = 20 // 仓位变更
+	EventTypeLiquidation EventType = 21 // 强平事件
+	EventTypeFunding     EventType = 22 // 资金费率结算
+	EventTypeADL         EventType = 23 // 自动减仓
+	EventTypeMarkPrice   EventType = 24 // 标记价格更新
 )
 
 func (e EventType) String() string {
@@ -41,6 +50,16 @@ func (e EventType) String() string {
 		return "AUCTION_START"
 	case EventTypeAuctionEnd:
 		return "AUCTION_END"
+	case EventTypePosition:
+		return "POSITION"
+	case EventTypeLiquidation:
+		return "LIQUIDATION"
+	case EventTypeFunding:
+		return "FUNDING"
+	case EventTypeADL:
+		return "ADL"
+	case EventTypeMarkPrice:
+		return "MARK_PRICE"
 	default:
 		return "UNKNOWN"
 	}
@@ -110,6 +129,40 @@ type AuctionEvent struct {
 	BaseEvent
 	Phase     string `json:"phase"` // CALL, MATCH, END
 	AuctionID string `json:"auction_id"`
+}
+
+// PositionEvent 仓位变更事件
+type PositionEvent struct {
+	BaseEvent
+	Position    *Position       `json:"position"`
+	RealizedPnL decimal.Decimal `json:"realized_pnl"`
+}
+
+// LiquidationEvent 强平事件
+type LiquidationEvent struct {
+	BaseEvent
+	UserID     string          `json:"user_id"`
+	PositionID string          `json:"position_id"`
+	Side       PositionSide    `json:"side"`
+	Quantity   decimal.Decimal `json:"quantity"`
+	Price      decimal.Decimal `json:"price"`
+	LossAmount decimal.Decimal `json:"loss_amount"`
+}
+
+// FundingEvent 资金费率结算事件
+type FundingEvent struct {
+	BaseEvent
+	FundingRate decimal.Decimal `json:"funding_rate"`
+	MarkPrice   decimal.Decimal `json:"mark_price"`
+	IndexPrice  decimal.Decimal `json:"index_price"`
+}
+
+// MarkPriceEvent 标记价格更新事件
+type MarkPriceEvent struct {
+	BaseEvent
+	MarkPrice  decimal.Decimal `json:"mark_price"`
+	IndexPrice decimal.Decimal `json:"index_price"`
+	LastPrice  decimal.Decimal `json:"last_price"`
 }
 
 // Command 命令类型
