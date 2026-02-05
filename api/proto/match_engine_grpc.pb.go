@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v5.29.3
-// source: match_engine.proto
+// source: api/proto/match_engine.proto
 
 package proto
 
@@ -293,7 +293,7 @@ var OrderService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "match_engine.proto",
+	Metadata: "api/proto/match_engine.proto",
 }
 
 // MarketDataServiceClient is the client API for MarketDataService service.
@@ -588,7 +588,7 @@ var MarketDataService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "match_engine.proto",
+	Metadata: "api/proto/match_engine.proto",
 }
 
 // AdminServiceClient is the client API for AdminService service.
@@ -904,7 +904,7 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "match_engine.proto",
+	Metadata: "api/proto/match_engine.proto",
 }
 
 // ContractServiceClient is the client API for ContractService service.
@@ -929,6 +929,20 @@ type ContractServiceClient interface {
 	SubscribePositions(ctx context.Context, in *SubscribePositionsRequest, opts ...grpc.CallOption) (ContractService_SubscribePositionsClient, error)
 	// 订阅强平事件
 	SubscribeLiquidations(ctx context.Context, in *SubscribeLiquidationsRequest, opts ...grpc.CallOption) (ContractService_SubscribeLiquidationsClient, error)
+	// 设置止盈止损
+	SetPositionTPSL(ctx context.Context, in *SetPositionTPSLRequest, opts ...grpc.CallOption) (*SetPositionTPSLResponse, error)
+	// 获取止盈止损设置
+	GetPositionTPSL(ctx context.Context, in *GetPositionTPSLRequest, opts ...grpc.CallOption) (*GetPositionTPSLResponse, error)
+	// 取消止盈止损
+	CancelPositionTPSL(ctx context.Context, in *CancelPositionTPSLRequest, opts ...grpc.CallOption) (*CancelPositionTPSLResponse, error)
+	// 获取标记价格
+	GetMarkPrice(ctx context.Context, in *GetMarkPriceRequest, opts ...grpc.CallOption) (*GetMarkPriceResponse, error)
+	// 调整保证金
+	AdjustMargin(ctx context.Context, in *AdjustMarginRequest, opts ...grpc.CallOption) (*AdjustMarginResponse, error)
+	// 获取保险基金
+	GetInsuranceFund(ctx context.Context, in *GetInsuranceFundRequest, opts ...grpc.CallOption) (*GetInsuranceFundResponse, error)
+	// 获取资金费率历史
+	GetFundingRateHistory(ctx context.Context, in *GetFundingRateHistoryRequest, opts ...grpc.CallOption) (*GetFundingRateHistoryResponse, error)
 }
 
 type contractServiceClient struct {
@@ -1066,6 +1080,69 @@ func (x *contractServiceSubscribeLiquidationsClient) Recv() (*LiquidationEvent, 
 	return m, nil
 }
 
+func (c *contractServiceClient) SetPositionTPSL(ctx context.Context, in *SetPositionTPSLRequest, opts ...grpc.CallOption) (*SetPositionTPSLResponse, error) {
+	out := new(SetPositionTPSLResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/SetPositionTPSL", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) GetPositionTPSL(ctx context.Context, in *GetPositionTPSLRequest, opts ...grpc.CallOption) (*GetPositionTPSLResponse, error) {
+	out := new(GetPositionTPSLResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/GetPositionTPSL", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) CancelPositionTPSL(ctx context.Context, in *CancelPositionTPSLRequest, opts ...grpc.CallOption) (*CancelPositionTPSLResponse, error) {
+	out := new(CancelPositionTPSLResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/CancelPositionTPSL", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) GetMarkPrice(ctx context.Context, in *GetMarkPriceRequest, opts ...grpc.CallOption) (*GetMarkPriceResponse, error) {
+	out := new(GetMarkPriceResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/GetMarkPrice", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) AdjustMargin(ctx context.Context, in *AdjustMarginRequest, opts ...grpc.CallOption) (*AdjustMarginResponse, error) {
+	out := new(AdjustMarginResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/AdjustMargin", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) GetInsuranceFund(ctx context.Context, in *GetInsuranceFundRequest, opts ...grpc.CallOption) (*GetInsuranceFundResponse, error) {
+	out := new(GetInsuranceFundResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/GetInsuranceFund", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contractServiceClient) GetFundingRateHistory(ctx context.Context, in *GetFundingRateHistoryRequest, opts ...grpc.CallOption) (*GetFundingRateHistoryResponse, error) {
+	out := new(GetFundingRateHistoryResponse)
+	err := c.cc.Invoke(ctx, "/matchengine.ContractService/GetFundingRateHistory", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ContractServiceServer is the server API for ContractService service.
 // All implementations must embed UnimplementedContractServiceServer
 // for forward compatibility
@@ -1088,6 +1165,20 @@ type ContractServiceServer interface {
 	SubscribePositions(*SubscribePositionsRequest, ContractService_SubscribePositionsServer) error
 	// 订阅强平事件
 	SubscribeLiquidations(*SubscribeLiquidationsRequest, ContractService_SubscribeLiquidationsServer) error
+	// 设置止盈止损
+	SetPositionTPSL(context.Context, *SetPositionTPSLRequest) (*SetPositionTPSLResponse, error)
+	// 获取止盈止损设置
+	GetPositionTPSL(context.Context, *GetPositionTPSLRequest) (*GetPositionTPSLResponse, error)
+	// 取消止盈止损
+	CancelPositionTPSL(context.Context, *CancelPositionTPSLRequest) (*CancelPositionTPSLResponse, error)
+	// 获取标记价格
+	GetMarkPrice(context.Context, *GetMarkPriceRequest) (*GetMarkPriceResponse, error)
+	// 调整保证金
+	AdjustMargin(context.Context, *AdjustMarginRequest) (*AdjustMarginResponse, error)
+	// 获取保险基金
+	GetInsuranceFund(context.Context, *GetInsuranceFundRequest) (*GetInsuranceFundResponse, error)
+	// 获取资金费率历史
+	GetFundingRateHistory(context.Context, *GetFundingRateHistoryRequest) (*GetFundingRateHistoryResponse, error)
 	mustEmbedUnimplementedContractServiceServer()
 }
 
@@ -1121,6 +1212,27 @@ func (UnimplementedContractServiceServer) SubscribePositions(*SubscribePositions
 }
 func (UnimplementedContractServiceServer) SubscribeLiquidations(*SubscribeLiquidationsRequest, ContractService_SubscribeLiquidationsServer) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeLiquidations not implemented")
+}
+func (UnimplementedContractServiceServer) SetPositionTPSL(context.Context, *SetPositionTPSLRequest) (*SetPositionTPSLResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetPositionTPSL not implemented")
+}
+func (UnimplementedContractServiceServer) GetPositionTPSL(context.Context, *GetPositionTPSLRequest) (*GetPositionTPSLResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPositionTPSL not implemented")
+}
+func (UnimplementedContractServiceServer) CancelPositionTPSL(context.Context, *CancelPositionTPSLRequest) (*CancelPositionTPSLResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelPositionTPSL not implemented")
+}
+func (UnimplementedContractServiceServer) GetMarkPrice(context.Context, *GetMarkPriceRequest) (*GetMarkPriceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMarkPrice not implemented")
+}
+func (UnimplementedContractServiceServer) AdjustMargin(context.Context, *AdjustMarginRequest) (*AdjustMarginResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AdjustMargin not implemented")
+}
+func (UnimplementedContractServiceServer) GetInsuranceFund(context.Context, *GetInsuranceFundRequest) (*GetInsuranceFundResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInsuranceFund not implemented")
+}
+func (UnimplementedContractServiceServer) GetFundingRateHistory(context.Context, *GetFundingRateHistoryRequest) (*GetFundingRateHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFundingRateHistory not implemented")
 }
 func (UnimplementedContractServiceServer) mustEmbedUnimplementedContractServiceServer() {}
 
@@ -1303,6 +1415,132 @@ func (x *contractServiceSubscribeLiquidationsServer) Send(m *LiquidationEvent) e
 	return x.ServerStream.SendMsg(m)
 }
 
+func _ContractService_SetPositionTPSL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetPositionTPSLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).SetPositionTPSL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/SetPositionTPSL",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).SetPositionTPSL(ctx, req.(*SetPositionTPSLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_GetPositionTPSL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPositionTPSLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).GetPositionTPSL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/GetPositionTPSL",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).GetPositionTPSL(ctx, req.(*GetPositionTPSLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_CancelPositionTPSL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelPositionTPSLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).CancelPositionTPSL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/CancelPositionTPSL",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).CancelPositionTPSL(ctx, req.(*CancelPositionTPSLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_GetMarkPrice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMarkPriceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).GetMarkPrice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/GetMarkPrice",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).GetMarkPrice(ctx, req.(*GetMarkPriceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_AdjustMargin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdjustMarginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).AdjustMargin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/AdjustMargin",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).AdjustMargin(ctx, req.(*AdjustMarginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_GetInsuranceFund_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInsuranceFundRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).GetInsuranceFund(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/GetInsuranceFund",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).GetInsuranceFund(ctx, req.(*GetInsuranceFundRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContractService_GetFundingRateHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFundingRateHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContractServiceServer).GetFundingRateHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/matchengine.ContractService/GetFundingRateHistory",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContractServiceServer).GetFundingRateHistory(ctx, req.(*GetFundingRateHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ContractService_ServiceDesc is the grpc.ServiceDesc for ContractService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1338,6 +1576,34 @@ var ContractService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetFundingRate",
 			Handler:    _ContractService_GetFundingRate_Handler,
 		},
+		{
+			MethodName: "SetPositionTPSL",
+			Handler:    _ContractService_SetPositionTPSL_Handler,
+		},
+		{
+			MethodName: "GetPositionTPSL",
+			Handler:    _ContractService_GetPositionTPSL_Handler,
+		},
+		{
+			MethodName: "CancelPositionTPSL",
+			Handler:    _ContractService_CancelPositionTPSL_Handler,
+		},
+		{
+			MethodName: "GetMarkPrice",
+			Handler:    _ContractService_GetMarkPrice_Handler,
+		},
+		{
+			MethodName: "AdjustMargin",
+			Handler:    _ContractService_AdjustMargin_Handler,
+		},
+		{
+			MethodName: "GetInsuranceFund",
+			Handler:    _ContractService_GetInsuranceFund_Handler,
+		},
+		{
+			MethodName: "GetFundingRateHistory",
+			Handler:    _ContractService_GetFundingRateHistory_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1351,5 +1617,5 @@ var ContractService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "match_engine.proto",
+	Metadata: "api/proto/match_engine.proto",
 }

@@ -97,13 +97,25 @@ func (s *ContractServer) CreateContractOrder(ctx context.Context, req *pb.Create
 		}
 	}
 
-	// TODO: 提交到合约撮合引擎
-	// 这里需要与 EngineManager 集成合约引擎
+	// 提交到合约撮合引擎
+	result := s.engineMgr.ProcessContractOrder(order)
+	if result.Rejected {
+		s.logger.Warn("Contract order rejected",
+			zap.String("order_id", orderID),
+			zap.String("reason", result.RejectReason),
+		)
+		return &pb.CreateContractOrderResponse{
+			Success: false,
+			Message: result.RejectReason,
+			Order:   convertContractOrderToPb(order),
+		}, nil
+	}
 
 	s.logger.Info("Contract order created",
 		zap.String("order_id", orderID),
 		zap.String("user_id", req.UserId),
 		zap.String("symbol", req.Symbol),
+		zap.String("status", order.Status.String()),
 	)
 
 	return &pb.CreateContractOrderResponse{
@@ -363,6 +375,303 @@ func (s *ContractServer) SubscribeLiquidations(req *pb.SubscribeLiquidationsRequ
 			}
 		}
 	}
+}
+
+// SetPositionTPSL 设置止盈止损
+func (s *ContractServer) SetPositionTPSL(ctx context.Context, req *pb.SetPositionTPSLRequest) (*pb.SetPositionTPSLResponse, error) {
+	if req.UserId == "" || req.Symbol == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing required fields")
+	}
+
+	positionSide := convertPositionSide(req.PositionSide)
+
+	// 解析止盈止损价格
+	tpPrice := decimal.Zero
+	slPrice := decimal.Zero
+
+	if req.TakeProfitPrice != "" {
+		var err error
+		tpPrice, err = decimal.NewFromString(req.TakeProfitPrice)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid take profit price")
+		}
+	}
+
+	if req.StopLossPrice != "" {
+		var err error
+		slPrice, err = decimal.NewFromString(req.StopLossPrice)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid stop loss price")
+		}
+	}
+
+	// 验证仓位存在
+	posKey := fmt.Sprintf("%s_%s", req.Symbol, positionSide.String())
+	pos, ok := s.positionMgr.GetPosition(req.UserId, posKey)
+	if !ok || pos.Quantity.IsZero() {
+		return &pb.SetPositionTPSLResponse{
+			Success: false,
+			Message: "no position found",
+		}, nil
+	}
+
+	// 验证止盈止损价格合理性
+	markPrice, _ := s.liquidationEng.GetMarkPrice(req.Symbol)
+
+	if pos.Side == types.PositionSideLong {
+		// 多头: 止盈价应大于标记价，止损价应小于标记价
+		if !tpPrice.IsZero() && tpPrice.LessThanOrEqual(markPrice) {
+			return &pb.SetPositionTPSLResponse{
+				Success: false,
+				Message: "take profit price must be greater than mark price for long position",
+			}, nil
+		}
+		if !slPrice.IsZero() && slPrice.GreaterThanOrEqual(markPrice) {
+			return &pb.SetPositionTPSLResponse{
+				Success: false,
+				Message: "stop loss price must be less than mark price for long position",
+			}, nil
+		}
+	} else {
+		// 空头: 止盈价应小于标记价，止损价应大于标记价
+		if !tpPrice.IsZero() && tpPrice.GreaterThanOrEqual(markPrice) {
+			return &pb.SetPositionTPSLResponse{
+				Success: false,
+				Message: "take profit price must be less than mark price for short position",
+			}, nil
+		}
+		if !slPrice.IsZero() && slPrice.LessThanOrEqual(markPrice) {
+			return &pb.SetPositionTPSLResponse{
+				Success: false,
+				Message: "stop loss price must be greater than mark price for short position",
+			}, nil
+		}
+	}
+
+	// 获取合约引擎并设置止盈止损
+	engine := s.engineMgr.GetContractEngine(req.Symbol)
+	if engine == nil {
+		return &pb.SetPositionTPSLResponse{
+			Success: false,
+			Message: "contract not found",
+		}, nil
+	}
+
+	engine.SetPositionTPSL(req.UserId, req.Symbol, positionSide, tpPrice, slPrice)
+
+	s.logger.Info("TPSL set",
+		zap.String("user_id", req.UserId),
+		zap.String("symbol", req.Symbol),
+		zap.String("tp_price", tpPrice.String()),
+		zap.String("sl_price", slPrice.String()),
+	)
+
+	return &pb.SetPositionTPSLResponse{
+		Success: true,
+		Message: "TPSL set successfully",
+	}, nil
+}
+
+// GetPositionTPSL 获取止盈止损设置
+func (s *ContractServer) GetPositionTPSL(ctx context.Context, req *pb.GetPositionTPSLRequest) (*pb.GetPositionTPSLResponse, error) {
+	if req.UserId == "" || req.Symbol == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing required fields")
+	}
+
+	positionSide := convertPositionSide(req.PositionSide)
+
+	engine := s.engineMgr.GetContractEngine(req.Symbol)
+	if engine == nil {
+		return &pb.GetPositionTPSLResponse{
+			Success: false,
+		}, nil
+	}
+
+	tpsl := engine.GetPositionTPSL(req.UserId, req.Symbol, positionSide)
+	if tpsl == nil {
+		return &pb.GetPositionTPSLResponse{
+			Success:         true,
+			TakeProfitPrice: "",
+			StopLossPrice:   "",
+		}, nil
+	}
+
+	return &pb.GetPositionTPSLResponse{
+		Success:         true,
+		TakeProfitPrice: tpsl.TakeProfitPrice.String(),
+		StopLossPrice:   tpsl.StopLossPrice.String(),
+	}, nil
+}
+
+// CancelPositionTPSL 取消止盈止损
+func (s *ContractServer) CancelPositionTPSL(ctx context.Context, req *pb.CancelPositionTPSLRequest) (*pb.CancelPositionTPSLResponse, error) {
+	if req.UserId == "" || req.Symbol == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing required fields")
+	}
+
+	positionSide := convertPositionSide(req.PositionSide)
+
+	engine := s.engineMgr.GetContractEngine(req.Symbol)
+	if engine == nil {
+		return &pb.CancelPositionTPSLResponse{
+			Success: false,
+			Message: "contract not found",
+		}, nil
+	}
+
+	// 设置为零价格即为取消
+	engine.SetPositionTPSL(req.UserId, req.Symbol, positionSide, decimal.Zero, decimal.Zero)
+
+	s.logger.Info("TPSL canceled",
+		zap.String("user_id", req.UserId),
+		zap.String("symbol", req.Symbol),
+	)
+
+	return &pb.CancelPositionTPSLResponse{
+		Success: true,
+		Message: "TPSL canceled",
+	}, nil
+}
+
+// GetMarkPrice 获取标记价格
+func (s *ContractServer) GetMarkPrice(ctx context.Context, req *pb.GetMarkPriceRequest) (*pb.GetMarkPriceResponse, error) {
+	if req.Symbol == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing symbol")
+	}
+
+	markPrice, ok := s.liquidationEng.GetMarkPrice(req.Symbol)
+	if !ok {
+		return &pb.GetMarkPriceResponse{
+			Success: false,
+		}, nil
+	}
+
+	rate, _ := s.fundingSvc.GetFundingRate(req.Symbol)
+
+	info := &pb.MarkPriceInfo{
+		Symbol:    req.Symbol,
+		MarkPrice: markPrice.String(),
+		Timestamp: time.Now().UnixNano(),
+	}
+
+	if rate != nil {
+		info.IndexPrice = rate.IndexPrice.String()
+		info.FundingRate = rate.FundingRate.String()
+		info.NextFundingTime = rate.NextFundingTime
+	}
+
+	return &pb.GetMarkPriceResponse{
+		Success:       true,
+		MarkPriceInfo: info,
+	}, nil
+}
+
+// AdjustMargin 调整保证金
+func (s *ContractServer) AdjustMargin(ctx context.Context, req *pb.AdjustMarginRequest) (*pb.AdjustMarginResponse, error) {
+	if req.UserId == "" || req.Symbol == "" || req.Amount == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing required fields")
+	}
+
+	amount, err := decimal.NewFromString(req.Amount)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid amount")
+	}
+
+	positionSide := convertPositionSide(req.PositionSide)
+	posKey := fmt.Sprintf("%s_%s", req.Symbol, positionSide.String())
+
+	pos, ok := s.positionMgr.GetPosition(req.UserId, posKey)
+	if !ok || pos.Quantity.IsZero() {
+		return &pb.AdjustMarginResponse{
+			Success: false,
+			Message: "no position found",
+		}, nil
+	}
+
+	// 只有逐仓模式可以调整保证金
+	if pos.MarginType != types.MarginTypeIsolated {
+		return &pb.AdjustMarginResponse{
+			Success: false,
+			Message: "only isolated margin can be adjusted",
+		}, nil
+	}
+
+	// 调整保证金
+	newMargin := pos.Margin.Add(amount)
+	if newMargin.LessThanOrEqual(decimal.Zero) {
+		return &pb.AdjustMarginResponse{
+			Success: false,
+			Message: "insufficient margin",
+		}, nil
+	}
+
+	// TODO: 实际调整保证金逻辑，需要与账户系统集成
+
+	s.logger.Info("Margin adjusted",
+		zap.String("user_id", req.UserId),
+		zap.String("symbol", req.Symbol),
+		zap.String("amount", amount.String()),
+	)
+
+	return &pb.AdjustMarginResponse{
+		Success: true,
+		Message: "margin adjusted",
+		Margin:  newMargin.String(),
+	}, nil
+}
+
+// GetInsuranceFund 获取保险基金
+func (s *ContractServer) GetInsuranceFund(ctx context.Context, req *pb.GetInsuranceFundRequest) (*pb.GetInsuranceFundResponse, error) {
+	if req.Symbol == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing symbol")
+	}
+
+	fund, ok := s.fundingSvc.GetInsuranceFund(req.Symbol)
+	if !ok {
+		return &pb.GetInsuranceFundResponse{
+			Success: true,
+			Symbol:  req.Symbol,
+			Balance: "0",
+		}, nil
+	}
+
+	return &pb.GetInsuranceFundResponse{
+		Success:   true,
+		Symbol:    fund.Symbol,
+		Balance:   fund.Balance.String(),
+		Timestamp: fund.Timestamp,
+	}, nil
+}
+
+// GetFundingRateHistory 获取资金费率历史
+func (s *ContractServer) GetFundingRateHistory(ctx context.Context, req *pb.GetFundingRateHistoryRequest) (*pb.GetFundingRateHistoryResponse, error) {
+	if req.Symbol == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing symbol")
+	}
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 100
+	}
+
+	history := s.fundingSvc.GetFundingHistory(req.Symbol, limit)
+
+	pbHistory := make([]*pb.FundingRate, 0, len(history))
+	for _, rate := range history {
+		pbHistory = append(pbHistory, &pb.FundingRate{
+			Symbol:          rate.Symbol,
+			FundingRate:     rate.FundingRate.String(),
+			FundingTime:     rate.FundingTime,
+			MarkPrice:       rate.MarkPrice.String(),
+			IndexPrice:      rate.IndexPrice.String(),
+			NextFundingTime: rate.NextFundingTime,
+		})
+	}
+
+	return &pb.GetFundingRateHistoryResponse{
+		Success: true,
+		History: pbHistory,
+	}, nil
 }
 
 // 辅助函数: 转换仓位方向

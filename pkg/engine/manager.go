@@ -4,18 +4,29 @@ import (
 	"sync"
 	"time"
 
+	"match-engine/pkg/funding"
+	"match-engine/pkg/liquidation"
+	"match-engine/pkg/position"
 	"match-engine/pkg/types"
+
+	"github.com/shopspring/decimal"
 )
 
 // EngineManager 撮合引擎管理器（支持多交易对）
 type EngineManager struct {
-	engines     map[string]*MatchEngine
-	auctions    map[string]*AuctionEngine
-	eventChan   chan types.Event
-	commandChan chan types.Command
-	mu          sync.RWMutex
-	stopChan    chan struct{}
-	workerCount int
+	engines         map[string]*MatchEngine
+	contractEngines map[string]*ContractMatchEngine // 合约撮合引擎
+	auctions        map[string]*AuctionEngine
+	eventChan       chan types.Event
+	commandChan     chan types.Command
+	mu              sync.RWMutex
+	stopChan        chan struct{}
+	workerCount     int
+
+	// 合约相关服务
+	positionMgr    *position.Manager
+	liquidationEng *liquidation.Engine
+	fundingSvc     *funding.Service
 }
 
 // EngineConfig 引擎配置
@@ -43,13 +54,27 @@ func NewEngineManager(config *EngineConfig) *EngineManager {
 	}
 
 	return &EngineManager{
-		engines:     make(map[string]*MatchEngine),
-		auctions:    make(map[string]*AuctionEngine),
-		eventChan:   make(chan types.Event, config.EventBufferSize),
-		commandChan: make(chan types.Command, config.CommandBufferSize),
-		stopChan:    make(chan struct{}),
-		workerCount: config.WorkerCount,
+		engines:         make(map[string]*MatchEngine),
+		contractEngines: make(map[string]*ContractMatchEngine),
+		auctions:        make(map[string]*AuctionEngine),
+		eventChan:       make(chan types.Event, config.EventBufferSize),
+		commandChan:     make(chan types.Command, config.CommandBufferSize),
+		stopChan:        make(chan struct{}),
+		workerCount:     config.WorkerCount,
 	}
+}
+
+// SetContractServices 设置合约相关服务
+func (m *EngineManager) SetContractServices(
+	positionMgr *position.Manager,
+	liquidationEng *liquidation.Engine,
+	fundingSvc *funding.Service,
+) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.positionMgr = positionMgr
+	m.liquidationEng = liquidationEng
+	m.fundingSvc = fundingSvc
 }
 
 // AddSymbol 添加交易对
@@ -61,6 +86,42 @@ func (m *EngineManager) AddSymbol(symbol string) {
 		m.engines[symbol] = NewMatchEngine(symbol, m.eventChan)
 		m.auctions[symbol] = NewAuctionEngine(symbol, m.eventChan)
 	}
+}
+
+// AddContractSymbol 添加合约交易对
+func (m *EngineManager) AddContractSymbol(contract *types.Contract) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	symbol := contract.Symbol
+	if _, ok := m.contractEngines[symbol]; !ok {
+		// 注册合约配置
+		if m.positionMgr != nil {
+			m.positionMgr.RegisterContract(contract)
+		}
+
+		// 创建合约撮合引擎
+		m.contractEngines[symbol] = NewContractMatchEngine(
+			symbol,
+			m.eventChan,
+			m.positionMgr,
+			m.liquidationEng,
+			m.fundingSvc,
+			contract,
+		)
+
+		// 同时创建现货引擎用于底层撮合
+		m.engines[symbol] = NewMatchEngine(symbol, m.eventChan)
+	}
+}
+
+// RemoveContractSymbol 移除合约交易对
+func (m *EngineManager) RemoveContractSymbol(symbol string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.contractEngines, symbol)
+	delete(m.engines, symbol)
 }
 
 // RemoveSymbol 移除交易对
@@ -86,6 +147,25 @@ func (m *EngineManager) GetAuctionEngine(symbol string) *AuctionEngine {
 	return m.auctions[symbol]
 }
 
+// GetContractEngine 获取合约撮合引擎
+func (m *EngineManager) GetContractEngine(symbol string) *ContractMatchEngine {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.contractEngines[symbol]
+}
+
+// ListContractSymbols 列出所有合约交易对
+func (m *EngineManager) ListContractSymbols() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	symbols := make([]string, 0, len(m.contractEngines))
+	for symbol := range m.contractEngines {
+		symbols = append(symbols, symbol)
+	}
+	return symbols
+}
+
 // ListSymbols 列出所有交易对
 func (m *EngineManager) ListSymbols() []string {
 	m.mu.RLock()
@@ -109,6 +189,40 @@ func (m *EngineManager) ProcessOrder(order *types.Order) *types.MatchResult {
 	}
 
 	return engine.ProcessOrder(order)
+}
+
+// ProcessContractOrder 处理合约订单
+func (m *EngineManager) ProcessContractOrder(order *types.ContractOrder) *ContractMatchResult {
+	engine := m.GetContractEngine(order.Symbol)
+	if engine == nil {
+		result := NewContractMatchResult(order)
+		result.Rejected = true
+		result.RejectReason = "contract symbol not found"
+		return result
+	}
+
+	return engine.ProcessContractOrder(order)
+}
+
+// ProcessLiquidationOrder 处理强平订单
+func (m *EngineManager) ProcessLiquidationOrder(order *types.LiquidationOrder) *LiquidationResult {
+	engine := m.GetContractEngine(order.Symbol)
+	if engine == nil {
+		return &LiquidationResult{
+			LiquidationOrder: order,
+			Success:          false,
+		}
+	}
+
+	return engine.ProcessLiquidationOrder(order)
+}
+
+// UpdateMarkPrice 更新合约标记价格
+func (m *EngineManager) UpdateMarkPrice(symbol string, markPrice decimal.Decimal) {
+	engine := m.GetContractEngine(symbol)
+	if engine != nil {
+		engine.UpdateMarkPrice(markPrice)
+	}
 }
 
 // CancelOrder 取消订单

@@ -402,6 +402,20 @@ service ContractService {
     rpc SubscribePositions(SubscribePositionsRequest) returns (stream PositionUpdate);
     // 订阅强平事件
     rpc SubscribeLiquidations(SubscribeLiquidationsRequest) returns (stream LiquidationEvent);
+    // 设置止盈止损
+    rpc SetPositionTPSL(SetPositionTPSLRequest) returns (SetPositionTPSLResponse);
+    // 获取止盈止损设置
+    rpc GetPositionTPSL(GetPositionTPSLRequest) returns (GetPositionTPSLResponse);
+    // 取消止盈止损
+    rpc CancelPositionTPSL(CancelPositionTPSLRequest) returns (CancelPositionTPSLResponse);
+    // 获取标记价格
+    rpc GetMarkPrice(GetMarkPriceRequest) returns (GetMarkPriceResponse);
+    // 调整保证金
+    rpc AdjustMargin(AdjustMarginRequest) returns (AdjustMarginResponse);
+    // 获取保险基金
+    rpc GetInsuranceFund(GetInsuranceFundRequest) returns (GetInsuranceFundResponse);
+    // 获取资金费率历史
+    rpc GetFundingRateHistory(GetFundingRateHistoryRequest) returns (GetFundingRateHistoryResponse);
 }
 
 // 合约类型
@@ -619,5 +633,100 @@ message MarkPriceInfo {
     string funding_rate = 5;
     int64 next_funding_time = 6;
     int64 timestamp = 7;
+}
+
+// 设置止盈止损请求
+message SetPositionTPSLRequest {
+    string user_id = 1;
+    string symbol = 2;
+    PositionSide position_side = 3;
+    string take_profit_price = 4;  // 止盈价格
+    string stop_loss_price = 5;    // 止损价格
+}
+
+// 设置止盈止损响应
+message SetPositionTPSLResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+// 获取止盈止损请求
+message GetPositionTPSLRequest {
+    string user_id = 1;
+    string symbol = 2;
+    PositionSide position_side = 3;
+}
+
+// 获取止盈止损响应
+message GetPositionTPSLResponse {
+    bool success = 1;
+    string take_profit_price = 2;
+    string stop_loss_price = 3;
+}
+
+// 取消止盈止损请求
+message CancelPositionTPSLRequest {
+    string user_id = 1;
+    string symbol = 2;
+    PositionSide position_side = 3;
+}
+
+// 取消止盈止损响应
+message CancelPositionTPSLResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+// 获取标记价格请求
+message GetMarkPriceRequest {
+    string symbol = 1;
+}
+
+// 获取标记价格响应
+message GetMarkPriceResponse {
+    bool success = 1;
+    MarkPriceInfo mark_price_info = 2;
+}
+
+// 调整保证金请求
+message AdjustMarginRequest {
+    string user_id = 1;
+    string symbol = 2;
+    PositionSide position_side = 3;
+    string amount = 4;        // 正数增加，负数减少
+    int32 type = 5;           // 1:增加 2:减少
+}
+
+// 调整保证金响应
+message AdjustMarginResponse {
+    bool success = 1;
+    string message = 2;
+    string margin = 3;           // 调整后保证金
+    string liquidation_price = 4; // 调整后强平价格
+}
+
+// 获取保险基金请求
+message GetInsuranceFundRequest {
+    string symbol = 1;
+}
+
+// 获取保险基金响应
+message GetInsuranceFundResponse {
+    bool success = 1;
+    string symbol = 2;
+    string balance = 3;
+    int64 timestamp = 4;
+}
+
+// 获取资金费率历史请求
+message GetFundingRateHistoryRequest {
+    string symbol = 1;
+    int32 limit = 2;
+}
+
+// 获取资金费率历史响应
+message GetFundingRateHistoryResponse {
+    bool success = 1;
+    repeated FundingRate history = 2;
 }
 

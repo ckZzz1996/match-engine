@@ -2,13 +2,15 @@ package engine
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"match-engine/pkg/funding"
 	"match-engine/pkg/liquidation"
 	"match-engine/pkg/position"
 	"match-engine/pkg/types"
+
+	"github.com/shopspring/decimal"
 )
 
 // ContractMatchEngine 合约撮合引擎
@@ -18,6 +20,35 @@ type ContractMatchEngine struct {
 	liquidationEng *liquidation.Engine // 强平引擎
 	fundingSvc     *funding.Service    // 资金费率服务
 	contract       *types.Contract     // 合约配置
+	tpslOrders     *TPSLOrderManager   // 止盈止损订单管理器
+}
+
+// TPSLOrderManager 止盈止损订单管理器
+type TPSLOrderManager struct {
+	engine       *ContractMatchEngine
+	orders       map[string]*types.ContractOrder // orderID -> order
+	userOrders   map[string][]string             // userID -> []orderID
+	positionTPSL map[string]*PositionTPSL        // positionKey -> TPSL
+	mu           sync.RWMutex
+}
+
+// PositionTPSL 仓位的止盈止损设置
+type PositionTPSL struct {
+	PositionKey     string // userID_symbol_side
+	TakeProfitPrice decimal.Decimal
+	StopLossPrice   decimal.Decimal
+	TPOrderID       string
+	SLOrderID       string
+}
+
+// NewTPSLOrderManager 创建止盈止损管理器
+func NewTPSLOrderManager(engine *ContractMatchEngine) *TPSLOrderManager {
+	return &TPSLOrderManager{
+		engine:       engine,
+		orders:       make(map[string]*types.ContractOrder),
+		userOrders:   make(map[string][]string),
+		positionTPSL: make(map[string]*PositionTPSL),
+	}
 }
 
 // NewContractMatchEngine 创建合约撮合引擎
@@ -29,13 +60,15 @@ func NewContractMatchEngine(
 	fundingSvc *funding.Service,
 	contract *types.Contract,
 ) *ContractMatchEngine {
-	return &ContractMatchEngine{
+	engine := &ContractMatchEngine{
 		MatchEngine:    NewMatchEngine(symbol, eventChan),
 		positionMgr:    positionMgr,
 		liquidationEng: liquidationEng,
 		fundingSvc:     fundingSvc,
 		contract:       contract,
 	}
+	engine.tpslOrders = NewTPSLOrderManager(engine)
+	return engine
 }
 
 // ProcessContractOrder 处理合约订单
@@ -381,8 +414,11 @@ func (e *ContractMatchEngine) UpdateMarkPrice(markPrice decimal.Decimal) {
 	indexPrice := markPrice // 简化: 使用标记价作为指数价
 	e.fundingSvc.UpdatePrices(e.symbol, markPrice, indexPrice)
 
-	// 检查是否触发止损/止盈
+	// 检查是否触发止损/止盈订单
 	e.stopOrders.CheckTriggers(markPrice)
+
+	// 检查仓位止盈止损
+	e.CheckAndTriggerTPSL(markPrice)
 }
 
 // ContractMatchResult 合约撮合结果
@@ -414,4 +450,357 @@ type LiquidationResult struct {
 	AvgPrice         decimal.Decimal
 	RealizedPnL      decimal.Decimal
 	Trades           []*types.Trade
+}
+
+// ProcessStopContractOrder 处理止损/止盈订单
+func (e *ContractMatchEngine) ProcessStopContractOrder(order *types.ContractOrder) *ContractMatchResult {
+	result := NewContractMatchResult(order)
+
+	// 验证止损价格
+	if order.StopPrice.IsZero() {
+		result.Rejected = true
+		result.RejectReason = "stop price is required"
+		return result
+	}
+
+	// 添加到止损单管理器
+	e.stopOrders.AddOrder(order.Order)
+
+	order.Status = types.OrderStatusNew
+	result.MatchResult = types.NewMatchResult(order.Order)
+
+	return result
+}
+
+// GetContractConfig 获取合约配置
+func (e *ContractMatchEngine) GetContractConfig() *types.Contract {
+	return e.contract
+}
+
+// CalculateROE 计算收益率
+func (e *ContractMatchEngine) CalculateROE(pos *types.Position) decimal.Decimal {
+	if pos.Margin.IsZero() {
+		return decimal.Zero
+	}
+	// ROE = 未实现盈亏 / 保证金 * 100%
+	return pos.UnrealizedPnL.Div(pos.Margin).Mul(decimal.NewFromInt(100))
+}
+
+// CalculatePnL 计算指定价格的盈亏
+func (e *ContractMatchEngine) CalculatePnL(pos *types.Position, price decimal.Decimal) decimal.Decimal {
+	if pos.Quantity.IsZero() {
+		return decimal.Zero
+	}
+
+	if pos.Side == types.PositionSideLong {
+		return price.Sub(pos.EntryPrice).Mul(pos.Quantity)
+	}
+	return pos.EntryPrice.Sub(price).Mul(pos.Quantity)
+}
+
+// GetMarkPrice 获取标记价格
+func (e *ContractMatchEngine) GetMarkPrice() (decimal.Decimal, bool) {
+	return e.liquidationEng.GetMarkPrice(e.symbol)
+}
+
+// GetIndexPrice 获取指数价格
+func (e *ContractMatchEngine) GetIndexPrice() (decimal.Decimal, bool) {
+	rate, ok := e.fundingSvc.GetFundingRate(e.symbol)
+	if !ok {
+		return decimal.Zero, false
+	}
+	return rate.IndexPrice, true
+}
+
+// GetFundingRate 获取当前资金费率
+func (e *ContractMatchEngine) GetFundingRate() (*types.FundingRate, bool) {
+	return e.fundingSvc.GetFundingRate(e.symbol)
+}
+
+// CalculateRequiredMargin 计算开仓所需保证金
+func (e *ContractMatchEngine) CalculateRequiredMargin(quantity, price decimal.Decimal, leverage int) decimal.Decimal {
+	// 保证金 = 数量 * 价格 * 合约面值 / 杠杆
+	positionValue := quantity.Mul(price).Mul(e.contract.ContractSize)
+	return positionValue.Div(decimal.NewFromInt(int64(leverage)))
+}
+
+// CalculateFee 计算手续费
+func (e *ContractMatchEngine) CalculateFee(quantity, price decimal.Decimal, isMaker bool) decimal.Decimal {
+	value := quantity.Mul(price).Mul(e.contract.ContractSize)
+	if isMaker {
+		return value.Mul(e.contract.MakerFeeRate)
+	}
+	return value.Mul(e.contract.TakerFeeRate)
+}
+
+// GetPositionValue 获取仓位价值
+func (e *ContractMatchEngine) GetPositionValue(pos *types.Position) decimal.Decimal {
+	return pos.Quantity.Mul(pos.MarkPrice).Mul(e.contract.ContractSize)
+}
+
+// ValidatePositionSize 验证仓位大小是否超限
+func (e *ContractMatchEngine) ValidatePositionSize(userID string, side types.PositionSide, addQty decimal.Decimal) error {
+	posKey := fmt.Sprintf("%s_%s", e.symbol, side.String())
+	pos, ok := e.positionMgr.GetPosition(userID, posKey)
+
+	totalQty := addQty
+	if ok {
+		totalQty = totalQty.Add(pos.Quantity)
+	}
+
+	if totalQty.GreaterThan(e.contract.MaxPositionQty) {
+		return fmt.Errorf("position size exceeds maximum: %s", e.contract.MaxPositionQty.String())
+	}
+
+	return nil
+}
+
+// GetOpenOrders 获取用户的挂单
+func (e *ContractMatchEngine) GetOpenOrders(userID string) []*types.Order {
+	return e.GetUserOrders(userID)
+}
+
+// CancelAllOrders 取消用户所有订单
+func (e *ContractMatchEngine) CancelAllOrders(userID string) []*types.Order {
+	orders := e.GetUserOrders(userID)
+	canceledOrders := make([]*types.Order, 0, len(orders))
+
+	for _, order := range orders {
+		canceled, err := e.CancelOrder(order.OrderID)
+		if err == nil && canceled != nil {
+			canceledOrders = append(canceledOrders, canceled)
+		}
+	}
+
+	return canceledOrders
+}
+
+// GetOrderBookDepth 获取合约订单簿深度
+func (e *ContractMatchEngine) GetOrderBookDepth(depth int) *types.OrderBookSnapshot {
+	return e.Snapshot(depth)
+}
+
+// SetPositionTPSL 设置仓位止盈止损
+func (e *ContractMatchEngine) SetPositionTPSL(userID, symbol string, side types.PositionSide, tpPrice, slPrice decimal.Decimal) *PositionTPSL {
+	return e.tpslOrders.SetPositionTPSL(userID, symbol, side, tpPrice, slPrice)
+}
+
+// GetPositionTPSL 获取仓位止盈止损设置
+func (e *ContractMatchEngine) GetPositionTPSL(userID, symbol string, side types.PositionSide) *PositionTPSL {
+	return e.tpslOrders.GetPositionTPSL(userID, symbol, side)
+}
+
+// CheckAndTriggerTPSL 检查并触发止盈止损
+func (e *ContractMatchEngine) CheckAndTriggerTPSL(markPrice decimal.Decimal) {
+	triggeredOrders := e.tpslOrders.CheckTPSLTriggers(markPrice)
+	for _, order := range triggeredOrders {
+		e.ProcessContractOrder(order)
+	}
+}
+
+// Stats 返回合约引擎统计信息
+func (e *ContractMatchEngine) Stats() map[string]interface{} {
+	stats := make(map[string]interface{})
+	stats["symbol"] = e.symbol
+	stats["contract_type"] = e.contract.ContractType.String()
+	stats["max_leverage"] = e.contract.MaxLeverage
+
+	// 标记价格
+	if markPrice, ok := e.liquidationEng.GetMarkPrice(e.symbol); ok {
+		stats["mark_price"] = markPrice.String()
+	}
+
+	// 资金费率
+	if rate, ok := e.fundingSvc.GetFundingRate(e.symbol); ok {
+		stats["funding_rate"] = rate.FundingRate.String()
+		stats["next_funding_time"] = rate.NextFundingTime
+	}
+
+	// 订单簿统计
+	bookStats := e.OrderBook().Stats()
+	stats["orderbook"] = bookStats
+
+	return stats
+}
+
+// =============== TPSLOrderManager 方法 ===============
+
+// AddTPSLOrder 添加止盈止损订单
+func (m *TPSLOrderManager) AddTPSLOrder(order *types.ContractOrder) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.orders[order.OrderID] = order
+	m.userOrders[order.UserID] = append(m.userOrders[order.UserID], order.OrderID)
+}
+
+// RemoveOrder 移除订单
+func (m *TPSLOrderManager) RemoveOrder(orderID string) *types.ContractOrder {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	order, ok := m.orders[orderID]
+	if !ok {
+		return nil
+	}
+
+	delete(m.orders, orderID)
+
+	// 从用户订单列表中移除
+	if userOrders, ok := m.userOrders[order.UserID]; ok {
+		for i, id := range userOrders {
+			if id == orderID {
+				m.userOrders[order.UserID] = append(userOrders[:i], userOrders[i+1:]...)
+				break
+			}
+		}
+	}
+
+	return order
+}
+
+// SetPositionTPSL 设置仓位止盈止损
+func (m *TPSLOrderManager) SetPositionTPSL(userID, symbol string, side types.PositionSide, tpPrice, slPrice decimal.Decimal) *PositionTPSL {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := fmt.Sprintf("%s_%s_%s", userID, symbol, side.String())
+
+	tpsl := &PositionTPSL{
+		PositionKey:     key,
+		TakeProfitPrice: tpPrice,
+		StopLossPrice:   slPrice,
+	}
+
+	m.positionTPSL[key] = tpsl
+	return tpsl
+}
+
+// GetPositionTPSL 获取仓位止盈止损设置
+func (m *TPSLOrderManager) GetPositionTPSL(userID, symbol string, side types.PositionSide) *PositionTPSL {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	key := fmt.Sprintf("%s_%s_%s", userID, symbol, side.String())
+	return m.positionTPSL[key]
+}
+
+// CheckTPSLTriggers 检查止盈止损触发
+func (m *TPSLOrderManager) CheckTPSLTriggers(markPrice decimal.Decimal) []*types.ContractOrder {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var triggeredOrders []*types.ContractOrder
+
+	for key, tpsl := range m.positionTPSL {
+		// 解析 key: userID_symbol_side
+		var triggered bool
+		var triggerType string
+
+		// 获取仓位信息
+		pos, ok := m.engine.positionMgr.GetPosition(extractUserID(key), extractPositionKey(key))
+		if !ok || pos.Quantity.IsZero() {
+			// 仓位已清空，删除止盈止损
+			delete(m.positionTPSL, key)
+			continue
+		}
+
+		if pos.Side == types.PositionSideLong {
+			// 多头: 止盈 - 价格 >= 止盈价, 止损 - 价格 <= 止损价
+			if !tpsl.TakeProfitPrice.IsZero() && markPrice.GreaterThanOrEqual(tpsl.TakeProfitPrice) {
+				triggered = true
+				triggerType = "take_profit"
+			} else if !tpsl.StopLossPrice.IsZero() && markPrice.LessThanOrEqual(tpsl.StopLossPrice) {
+				triggered = true
+				triggerType = "stop_loss"
+			}
+		} else {
+			// 空头: 止盈 - 价格 <= 止盈价, 止损 - 价格 >= 止损价
+			if !tpsl.TakeProfitPrice.IsZero() && markPrice.LessThanOrEqual(tpsl.TakeProfitPrice) {
+				triggered = true
+				triggerType = "take_profit"
+			} else if !tpsl.StopLossPrice.IsZero() && markPrice.GreaterThanOrEqual(tpsl.StopLossPrice) {
+				triggered = true
+				triggerType = "stop_loss"
+			}
+		}
+
+		if triggered {
+			// 创建平仓订单
+			closeOrder := &types.ContractOrder{
+				Order: &types.Order{
+					OrderID:     fmt.Sprintf("tpsl_%d", time.Now().UnixNano()),
+					UserID:      pos.UserID,
+					Symbol:      pos.Symbol,
+					Side:        m.getCloseSide(pos.Side),
+					Type:        types.OrderTypeMarket,
+					Quantity:    pos.Quantity,
+					TimeInForce: types.TimeInForceIOC,
+					CreateTime:  time.Now().UnixNano(),
+				},
+				PositionSide:  pos.Side,
+				Leverage:      pos.Leverage,
+				MarginType:    pos.MarginType,
+				ReduceOnly:    true,
+				ClosePosition: true,
+			}
+
+			triggeredOrders = append(triggeredOrders, closeOrder)
+
+			// 删除已触发的止盈止损
+			delete(m.positionTPSL, key)
+
+			// 可以在这里记录触发原因
+			_ = triggerType
+		}
+	}
+
+	return triggeredOrders
+}
+
+// getCloseSide 获取平仓方向
+func (m *TPSLOrderManager) getCloseSide(positionSide types.PositionSide) types.OrderSide {
+	if positionSide == types.PositionSideLong {
+		return types.OrderSideSell
+	}
+	return types.OrderSideBuy
+}
+
+// extractUserID 从 key 中提取 userID
+func extractUserID(key string) string {
+	// key format: userID_symbol_side
+	for i := 0; i < len(key); i++ {
+		if key[i] == '_' {
+			return key[:i]
+		}
+	}
+	return key
+}
+
+// extractPositionKey 从 key 中提取 position key (symbol_side)
+func extractPositionKey(key string) string {
+	// key format: userID_symbol_side
+	firstUnderscore := -1
+	for i := 0; i < len(key); i++ {
+		if key[i] == '_' {
+			if firstUnderscore == -1 {
+				firstUnderscore = i
+			} else {
+				return key[firstUnderscore+1:]
+			}
+		}
+	}
+	return ""
+}
+
+// ClearUserTPSL 清除用户所有止盈止损
+func (m *TPSLOrderManager) ClearUserTPSL(userID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for key := range m.positionTPSL {
+		if extractUserID(key) == userID {
+			delete(m.positionTPSL, key)
+		}
+	}
 }
